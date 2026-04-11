@@ -1,0 +1,50 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: neurostream
+      POSTGRES_USER: neurostream
+      POSTGRES_PASSWORD: neurostream
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  ms3:
+    build:
+      context: ./ms3
+    environment:
+      DATABASE_URL: postgresql+asyncpg://neurostream:neurostream@postgres:5432/neurostream
+      MS4_BASE_URL: http://host.docker.internal:8084
+      EMBEDDING_DIMENSIONS: 768
+    depends_on:
+      - postgres
+    ports:
+      - "8003:8000"
+
+  ms2:
+    build:
+      context: ./ms2
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      MS3_BASE_URL: http://ms3:8000
+      MS4_BASE_URL: http://host.docker.internal:8084
+      EMBEDDING_DIMENSIONS: 768
+      MS2_PROCESS_INLINE: "true"
+      MOCK_EXTERNAL_SERVICES: "true"
+    depends_on:
+      - redis
+      - ms3
+    ports:
+      - "8002:8000"
+
+volumes:
+  pgdata:
+

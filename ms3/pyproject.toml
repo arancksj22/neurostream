@@ -1,0 +1,24 @@
+[project]
+name = "neurostream-ms3"
+version = "0.1.0"
+description = "Search and discovery service for NeuroStream"
+requires-python = ">=3.11"
+dependencies = [
+    "asyncpg",
+    "fastapi",
+    "httpx",
+    "pgvector",
+    "pydantic",
+    "python-dotenv",
+    "sqlalchemy[asyncio]",
+    "psycopg2-binary",
+    "uvicorn",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+package = false
+
