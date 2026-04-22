@@ -7,7 +7,9 @@ import threading
 import time
 from collections import deque
 from pathlib import Path
+import tempfile
 from typing import Sequence
+import wave
 
 from app.core.config import Settings
 from app.models.schemas import AudioSegmentInput, TranscriptSegment
@@ -89,66 +91,84 @@ class TranscriptionService:
         downloaded_files: list[str] = []
 
         try:
-            for index, audio_segment in enumerate(audio_segments):
-                # Resolve file: download from S3 if not a local path
-                media_path = Path(audio_segment.s3_key)
-                if media_path.exists():
-                    local_path = str(media_path)
-                else:
-                    local_path = download_s3_file(self._settings, audio_segment.s3_key)
-                    downloaded_files.append(local_path)
+            batches = self._group_segments(audio_segments)
 
-                start_offset = audio_segment.start_time if audio_segment.start_time is not None else 0.0
+            request_index = 0
+            for batch in batches:
+                local_paths: list[str] = []
+                for audio_segment in batch:
+                    media_path = Path(audio_segment.s3_key)
+                    if media_path.exists():
+                        local_paths.append(str(media_path))
+                    else:
+                        local_path = download_s3_file(self._settings, audio_segment.s3_key)
+                        downloaded_files.append(local_path)
+                        local_paths.append(local_path)
 
-                logger.info(
-                    "Transcribing segment %d/%d via OpenAI API: %s",
-                    index + 1, len(audio_segments), audio_segment.s3_key,
-                )
+                request_groups = self._build_request_groups(batch, local_paths)
+                for request_segments, request_path in request_groups:
+                    request_index += 1
+                    if request_path not in local_paths:
+                        downloaded_files.append(request_path)
 
-                self._rate_limiter.acquire()
-
-                # Call OpenAI Whisper API with verbose JSON for timestamps
-                with open(local_path, "rb") as audio_file:
-                    response = client.audio.transcriptions.create(
-                        model=self._settings.whisper_model,
-                        file=audio_file,
-                        response_format="verbose_json",
-                        timestamp_granularities=["segment"],
+                    start_offset = request_segments[0].start_time if request_segments[0].start_time is not None else 0.0
+                    source_key = (
+                        request_segments[0].s3_key
+                        if len(request_segments) == 1
+                        else f"{request_segments[0].s3_key} (+{len(request_segments) - 1} more)"
                     )
 
-                # Parse segments from the response
-                segments = getattr(response, "segments", None) or []
+                    logger.info(
+                        "Transcribing audio request %d via OpenAI API (%d segments)",
+                        request_index,
+                        len(request_segments),
+                    )
 
-                if segments:
-                    for segment in segments:
-                        seg_start = start_offset + float(getattr(segment, "start", 0.0))
-                        seg_end = start_offset + float(getattr(segment, "end", seg_start))
-                        seg_text = getattr(segment, "text", "").strip()
+                    self._rate_limiter.acquire()
 
-                        if not seg_text:
-                            continue
-
-                        transcripts.append(
-                            TranscriptSegment(
-                                start_time=seg_start,
-                                end_time=seg_end,
-                                text=seg_text,
-                                source_key=audio_segment.s3_key,
-                            )
+                    with open(request_path, "rb") as audio_file:
+                        response = client.audio.transcriptions.create(
+                            model=self._settings.whisper_model,
+                            file=audio_file,
+                            response_format="verbose_json",
+                            timestamp_granularities=["segment"],
                         )
-                else:
-                    # No segments returned — use the full text as one block
-                    full_text = getattr(response, "text", "").strip()
-                    if full_text:
-                        end_time = audio_segment.end_time if audio_segment.end_time is not None else start_offset + 15.0
-                        transcripts.append(
-                            TranscriptSegment(
-                                start_time=start_offset,
-                                end_time=end_time,
-                                text=full_text,
-                                source_key=audio_segment.s3_key,
+
+                    segments = getattr(response, "segments", None) or []
+
+                    if segments:
+                        for segment in segments:
+                            seg_start = start_offset + float(getattr(segment, "start", 0.0))
+                            seg_end = start_offset + float(getattr(segment, "end", seg_start))
+                            seg_text = getattr(segment, "text", "").strip()
+
+                            if not seg_text:
+                                continue
+
+                            transcripts.append(
+                                TranscriptSegment(
+                                    start_time=seg_start,
+                                    end_time=seg_end,
+                                    text=seg_text,
+                                    source_key=source_key,
+                                )
                             )
-                        )
+                    else:
+                        full_text = getattr(response, "text", "").strip()
+                        if full_text:
+                            end_time = (
+                                request_segments[-1].end_time
+                                if request_segments[-1].end_time is not None
+                                else start_offset + 15.0 * len(request_segments)
+                            )
+                            transcripts.append(
+                                TranscriptSegment(
+                                    start_time=start_offset,
+                                    end_time=end_time,
+                                    text=full_text,
+                                    source_key=source_key,
+                                )
+                            )
 
         finally:
             # Clean up downloaded temp files
@@ -160,6 +180,45 @@ class TranscriptionService:
 
         logger.info("OpenAI API transcription complete: %d segments", len(transcripts))
         return transcripts
+
+    def _group_segments(self, audio_segments: Sequence[AudioSegmentInput]) -> list[list[AudioSegmentInput]]:
+        batch_size = max(1, self._settings.openai_transcription_segments_per_request)
+        return [
+            list(audio_segments[index:index + batch_size])
+            for index in range(0, len(audio_segments), batch_size)
+        ]
+
+    def _build_request_groups(
+        self,
+        batch: Sequence[AudioSegmentInput],
+        local_paths: Sequence[str],
+    ) -> list[tuple[list[AudioSegmentInput], str]]:
+        if len(local_paths) == 1:
+            return [(list(batch), local_paths[0])]
+
+        if not all(path.lower().endswith(".wav") for path in local_paths):
+            return [([segment], path) for segment, path in zip(batch, local_paths, strict=True)]
+
+        with wave.open(local_paths[0], "rb") as first_reader:
+            params = first_reader.getparams()
+            frames = [first_reader.readframes(first_reader.getnframes())]
+
+        for path in local_paths[1:]:
+            with wave.open(path, "rb") as reader:
+                if reader.getparams()[:4] != params[:4]:
+                    return [([segment], single_path) for segment, single_path in zip(batch, local_paths, strict=True)]
+                frames.append(reader.readframes(reader.getnframes()))
+
+        tmp = tempfile.NamedTemporaryFile(prefix="ms2_whisper_batch_", suffix=".wav", delete=False)
+        tmp_path = tmp.name
+        tmp.close()
+
+        with wave.open(tmp_path, "wb") as writer:
+            writer.setparams(params)
+            for chunk_frames in frames:
+                writer.writeframes(chunk_frames)
+
+        return [(list(batch), tmp_path)]
 
     def _fallback_transcription(
         self,
