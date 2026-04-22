@@ -3,6 +3,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import threading
+import time
+from collections import deque
 from pathlib import Path
 from typing import Sequence
 
@@ -14,9 +17,53 @@ from app.services.s3_helper import download_s3_file
 logger = logging.getLogger(__name__)
 
 
+class OpenAIRequestRateLimiter:
+    def __init__(self, requests_per_minute: int) -> None:
+        self._requests_per_minute = max(requests_per_minute, 1)
+        self._window_seconds = 60.0
+        self._timestamps: deque[float] = deque()
+        self._condition = threading.Condition()
+
+    def acquire(self) -> None:
+        while True:
+            wait_seconds = 0.0
+            with self._condition:
+                now = time.monotonic()
+                while self._timestamps and now - self._timestamps[0] >= self._window_seconds:
+                    self._timestamps.popleft()
+
+                if len(self._timestamps) < self._requests_per_minute:
+                    self._timestamps.append(now)
+                    self._condition.notify_all()
+                    return
+
+                wait_seconds = max(0.0, self._window_seconds - (now - self._timestamps[0]))
+
+            if wait_seconds > 0:
+                logger.info(
+                    "OpenAI Whisper rate limit reached; sleeping %.2fs before next transcription request",
+                    wait_seconds,
+                )
+                time.sleep(wait_seconds)
+
+
 class TranscriptionService:
+    _limiters: dict[int, OpenAIRequestRateLimiter] = {}
+    _limiters_lock = threading.Lock()
+
     def __init__(self, settings: Settings) -> None:
         self._settings = settings
+        self._rate_limiter = self._get_rate_limiter(settings.openai_transcription_requests_per_minute)
+
+    @classmethod
+    def _get_rate_limiter(cls, requests_per_minute: int) -> OpenAIRequestRateLimiter:
+        normalized = max(requests_per_minute, 1)
+        with cls._limiters_lock:
+            limiter = cls._limiters.get(normalized)
+            if limiter is None:
+                limiter = OpenAIRequestRateLimiter(normalized)
+                cls._limiters[normalized] = limiter
+            return limiter
 
     async def transcribe(self, audio_segments: Sequence[AudioSegmentInput]) -> list[TranscriptSegment]:
         if not audio_segments:
@@ -58,10 +105,12 @@ class TranscriptionService:
                     index + 1, len(audio_segments), audio_segment.s3_key,
                 )
 
+                self._rate_limiter.acquire()
+
                 # Call OpenAI Whisper API with verbose JSON for timestamps
                 with open(local_path, "rb") as audio_file:
                     response = client.audio.transcriptions.create(
-                        model="whisper-1",
+                        model=self._settings.whisper_model,
                         file=audio_file,
                         response_format="verbose_json",
                         timestamp_granularities=["segment"],

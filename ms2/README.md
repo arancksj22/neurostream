@@ -32,6 +32,7 @@ MS2 is the AI perception service for NeuroStream. It turns audio and frame refer
 - `GEMINI_VISION_MODEL`
 - `GEMINI_EMBEDDING_MODEL`
 - `OPENAI_API_KEY`
+- `OPENAI_TRANSCRIPTION_REQUESTS_PER_MINUTE`
 - `WHISPER_MODEL`
 - `MS3_BASE_URL`
 - `MS4_BASE_URL`
@@ -45,6 +46,7 @@ For production-style deployments, MS2 should run with:
 
 - `MOCK_EXTERNAL_SERVICES=false`
 - `OPENAI_API_KEY` set for Whisper transcription
+- `OPENAI_TRANSCRIPTION_REQUESTS_PER_MINUTE` tuned to your account limits, starting around `8`
 - `GEMINI_API_KEY` set for embeddings and, if enabled, vision analysis
 - `GEMINI_EMBEDDING_MODEL=gemini-embedding-001`
 

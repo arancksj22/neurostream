@@ -31,6 +31,8 @@ class Settings:
     gemini_vision_model: str
     gemini_embedding_model: str
     openai_api_key: str
+    whisper_model: str
+    openai_transcription_requests_per_minute: int
     ms3_base_url: str
     ms4_base_url: str
     embedding_dimensions: int
@@ -54,6 +56,8 @@ def get_settings() -> Settings:
             "gemini-embedding-001",
         ),
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
+        whisper_model=os.getenv("WHISPER_MODEL", "whisper-1"),
+        openai_transcription_requests_per_minute=int(os.getenv("OPENAI_TRANSCRIPTION_REQUESTS_PER_MINUTE", "8")),
         ms3_base_url=os.getenv("MS3_BASE_URL", "").rstrip("/"),
         ms4_base_url=os.getenv("MS4_BASE_URL", "").rstrip("/"),
         ms4_api_key=_get_first_env(["MS4_INTERNAL_API_KEY", "MS4_API_KEY", "MS4_TOKEN", "INTERNAL_API_KEY"], ""),
