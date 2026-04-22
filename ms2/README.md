@@ -46,6 +46,7 @@ For production-style deployments, MS2 should run with:
 - `MOCK_EXTERNAL_SERVICES=false`
 - `OPENAI_API_KEY` set for Whisper transcription
 - `GEMINI_API_KEY` set for embeddings and, if enabled, vision analysis
+- `GEMINI_EMBEDDING_MODEL=gemini-embedding-001`
 
 ## Local Run
 

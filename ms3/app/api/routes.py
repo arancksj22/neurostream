@@ -46,21 +46,23 @@ async def _resolve_embedding(
     if not settings.gemini_api_key:
         return None
 
-    import google.generativeai as genai
+    from google import genai
+    from google.genai import types
     import math
 
-    genai.configure(api_key=settings.gemini_api_key)
+    client = genai.Client(api_key=settings.gemini_api_key)
     try:
         response = await asyncio.to_thread(
-            genai.embed_content,
+            client.models.embed_content,
             model=settings.gemini_embedding_model,
-            content=query_text,
-            task_type="retrieval_query",
+            contents=[query_text],
+            config=types.EmbedContentConfig(
+                task_type="RETRIEVAL_QUERY",
+                output_dimensionality=settings.embedding_dimensions,
+            ),
         )
-        if isinstance(response, dict):
-            vec = response.get("embedding") if "embedding" in response else response.get("embeddings", [])[0]
-        else:
-            vec = getattr(response, "embedding", None)
+        embeddings = getattr(response, "embeddings", None) or []
+        vec = embeddings[0].values if embeddings else None
 
         if vec:
             values = [float(v) for v in vec]

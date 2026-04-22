@@ -36,11 +36,11 @@ class VisionService:
         return self._fallback_analysis(frame_images)
 
     def _analyze_with_gemini(self, frame_images: Sequence[FrameInput]) -> list[FrameAnalysis]:
-        import google.generativeai as genai
+        from google import genai
+        from google.genai import types
         from PIL import Image
 
-        genai.configure(api_key=self._settings.gemini_api_key)
-        model = genai.GenerativeModel(self._settings.gemini_vision_model)
+        client = genai.Client(api_key=self._settings.gemini_api_key)
 
         analyses: list[FrameAnalysis] = []
         downloaded_files: list[str] = []
@@ -66,7 +66,14 @@ class VisionService:
 
                 try:
                     image = Image.open(local_path)
-                    response = model.generate_content([prompt, image])
+                    response = client.models.generate_content(
+                        model=self._settings.gemini_vision_model,
+                        contents=[prompt, image],
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json",
+                            temperature=0,
+                        ),
+                    )
                     parsed = self._parse_vision_response(response.text)
 
                     analyses.append(

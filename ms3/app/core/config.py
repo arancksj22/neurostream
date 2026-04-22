@@ -36,6 +36,5 @@ def get_settings() -> Settings:
         search_max_limit=int(os.getenv("SEARCH_MAX_LIMIT", "20")),
         allow_in_memory_fallback=_get_bool("ALLOW_IN_MEMORY_FALLBACK", True),
         gemini_api_key=os.getenv("GEMINI_API_KEY", ""),
-        gemini_embedding_model=os.getenv("GEMINI_EMBEDDING_MODEL", "models/text-embedding-004"),
+        gemini_embedding_model=os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"),
     )
-

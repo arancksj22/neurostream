@@ -13,7 +13,7 @@ dependencies = [
     "sqlalchemy[asyncio]",
     "psycopg2-binary",
     "uvicorn",
-    "google-generativeai",
+    "google-genai",
 ]
 
 [build-system]
@@ -22,4 +22,3 @@ build-backend = "setuptools.build_meta"
 
 [tool.uv]
 package = false
-

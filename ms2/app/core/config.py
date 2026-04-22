@@ -51,7 +51,7 @@ def get_settings() -> Settings:
         gemini_vision_model=os.getenv("GEMINI_VISION_MODEL", ""),
         gemini_embedding_model=os.getenv(
             "GEMINI_EMBEDDING_MODEL",
-            "models/text-embedding-004",
+            "gemini-embedding-001",
         ),
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
         ms3_base_url=os.getenv("MS3_BASE_URL", "").rstrip("/"),
