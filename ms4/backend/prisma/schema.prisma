@@ -32,12 +32,6 @@ enum VideoStatus {
   DELETED
 }
 
-enum PlanName {
-  FREE
-  PRO
-  ENTERPRISE
-}
-
 // ─── Models ──────────────────────────────────────────────
 
 model User {
@@ -50,8 +44,6 @@ model User {
   updatedAt    DateTime  @updatedAt @map("updated_at")
 
   videos       Video[]
-  subscription Subscription?
-  billingUsage BillingUsage[]
 
   @@map("users")
 }
@@ -95,40 +87,6 @@ model WorkflowStatusLog {
 
   @@index([videoId])
   @@map("workflow_status_logs")
-}
-
-model Subscription {
-  id              String   @id @default(uuid())
-  userId          String   @unique @map("user_id")
-  planName        PlanName @default(FREE) @map("plan_name")
-  maxVideos       Int      @default(10) @map("max_videos")
-  maxStorageBytes BigInt   @default(5368709120) @map("max_storage_bytes") // 5GB
-  maxMinutes      Int      @default(60) @map("max_minutes")
-  startedAt       DateTime @default(now()) @map("started_at")
-  expiresAt       DateTime? @map("expires_at")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("subscriptions")
-}
-
-model BillingUsage {
-  id               String   @id @default(uuid())
-  userId           String   @map("user_id")
-  month            String   // Format: YYYY-MM
-  videosUploaded   Int      @default(0) @map("videos_uploaded")
-  storageUsedBytes BigInt   @default(0) @map("storage_used_bytes")
-  minutesProcessed Float    @default(0) @map("minutes_processed")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, month])
-  @@index([userId])
-  @@map("billing_usage")
 }
 
 model CallbackEvent {

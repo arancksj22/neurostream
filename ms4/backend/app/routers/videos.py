@@ -13,7 +13,6 @@ from ..schemas import RenameVideoRequest, VideoInteractionEventRequest
 from ..serializers import serialize_video, serialize_workflow_log
 from ..storage import delete_object, generate_presigned_get_url_cached
 from ..utils import utc_now
-from .helpers import ensure_subscription
 
 router = APIRouter(prefix="/api/videos", tags=["videos"])
 
@@ -175,8 +174,6 @@ def delete_video(
     )
     if not video:
         raise HTTPException(status_code=404, detail="Video not found.")
-
-    ensure_subscription(db, current_user.id)
 
     storage_deleted = False
     try:

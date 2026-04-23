@@ -2,7 +2,6 @@ import uuid
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from botocore.exceptions import ClientError
-from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from ..config import settings
@@ -14,7 +13,6 @@ from ..responses import success_response
 from ..schemas import CompleteUploadRequest, InitiateUploadRequest
 from ..storage import generate_presigned_put_url, get_object_metadata
 from ..utils import generate_object_key
-from .helpers import ensure_subscription, increment_usage
 
 router = APIRouter(prefix="/api/upload", tags=["upload"])
 logger = logging.getLogger(__name__)
@@ -24,32 +22,8 @@ logger = logging.getLogger(__name__)
 def initiate_upload(
     payload: InitiateUploadRequest,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    _db: Session = Depends(get_db),
 ):
-    subscription = ensure_subscription(db, current_user.id)
-
-    video_count = db.scalar(
-        select(func.count(Video.id)).where(Video.user_id == current_user.id, Video.deleted_at.is_(None))
-    ) or 0
-    if video_count >= subscription.max_videos:
-        raise HTTPException(
-            status_code=403,
-            detail=(
-                f"Video limit reached. Your {subscription.plan_name} plan allows "
-                f"{subscription.max_videos} videos. Please upgrade your plan."
-            ),
-        )
-
-    storage_used = db.scalar(
-        select(func.coalesce(func.sum(Video.file_size), 0)).where(
-            Video.user_id == current_user.id,
-            Video.deleted_at.is_(None),
-        )
-    ) or 0
-
-    if int(storage_used) + payload.fileSize > int(subscription.max_storage_bytes):
-        raise HTTPException(status_code=403, detail="Storage quota exceeded for your current plan.")
-
     object_key = generate_object_key(current_user.id, payload.filename)
     upload_url = generate_presigned_put_url(object_key, payload.contentType, expires=900)
 
@@ -94,8 +68,6 @@ def complete_upload(
     )
     db.add(video)
     db.flush()
-
-    increment_usage(db, current_user.id, file_size)
 
     db.add(
         WorkflowStatusLog(

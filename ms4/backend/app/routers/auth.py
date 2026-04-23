@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from ..deps import get_current_user
 from ..database import get_db
-from ..models import Subscription, User
+from ..models import User
 from ..responses import success_response
 from ..schemas import LoginRequest, RegisterRequest
 from ..security import create_access_token, hash_password, verify_password
@@ -27,16 +27,6 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     )
     db.add(user)
     db.flush()
-
-    db.add(
-        Subscription(
-            user_id=user.id,
-            plan_name="FREE",
-            max_videos=10,
-            max_storage_bytes=5_368_709_120,
-            max_minutes=60,
-        )
-    )
     db.commit()
     db.refresh(user)
 

@@ -14,7 +14,6 @@ VIDEO_STATUSES = {
 }
 
 USER_ROLES = {"USER", "ADMIN"}
-PLAN_NAMES = {"FREE", "PRO", "ENTERPRISE"}
 
 KNOWN_SERVICES = {
     "media-processor",

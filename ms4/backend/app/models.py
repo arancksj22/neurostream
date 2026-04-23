@@ -54,25 +54,6 @@ class WorkflowStatusLog(Base):
     message: Mapped[str | None] = mapped_column(String(500))
     created_at: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), default=utc_now)
 
-
-class Subscription(Base):
-    __tablename__ = "subscriptions"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
-    user_id: Mapped[str] = mapped_column("user_id", String(36), ForeignKey("users.id", ondelete="CASCADE"), unique=True)
-    plan_name: Mapped[str] = mapped_column("plan_name", String(20), default="FREE", nullable=False)
-    max_videos: Mapped[int] = mapped_column("max_videos", Integer, default=10, nullable=False)
-    max_storage_bytes: Mapped[int] = mapped_column("max_storage_bytes", BigInteger, default=5_368_709_120, nullable=False)
-    max_minutes: Mapped[int] = mapped_column("max_minutes", Integer, default=60, nullable=False)
-    started_at: Mapped[datetime] = mapped_column("started_at", DateTime(timezone=True), default=utc_now)
-    expires_at: Mapped[datetime | None] = mapped_column("expires_at", DateTime(timezone=True))
-    created_at: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime(timezone=True), default=utc_now, onupdate=utc_now)
-
-
-
-
-
 class CallbackEvent(Base):
     __tablename__ = "callback_events"
 

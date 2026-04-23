@@ -50,24 +50,3 @@ export type VideoDetails = Video & {
   processedReady: boolean;
   fileUrl?: string;
 };
-
-export type BillingSummary = {
-  plan: {
-    name: 'FREE' | 'PRO' | 'ENTERPRISE';
-    maxVideos: number;
-    maxStorageBytes: string;
-    maxMinutes: number;
-    expiresAt: string | null;
-  };
-  usage: {
-    month: string;
-    videosUploaded: number;
-    storageUsedBytes: string;
-    minutesProcessed: number;
-  };
-  remaining: {
-    videos: number;
-    storageBytes: string;
-    minutes: number;
-  };
-};

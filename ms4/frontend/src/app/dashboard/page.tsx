@@ -18,8 +18,7 @@ import { motion } from 'framer-motion';
 import { ProtectedRoute } from '../../components/protected-route';
 import { AppShell } from '../../components/layout/app-shell';
 import { fetchLibrary } from '../../services/video.service';
-import { apiRequest } from '../../lib/http';
-import { BillingSummary, Video, VideoStatus } from '../../types/domain';
+import { Video, VideoStatus } from '../../types/domain';
 import { Card } from '../../components/ui/card';
 import { LoadingSkeleton } from '../../components/ui/loading-skeleton';
 import { StatusBadge } from '../../components/ui/status-badge';
@@ -38,10 +37,6 @@ const IN_PROGRESS_STATUSES: VideoStatus[] = [
   'ANALYTICS_READY',
 ];
 
-function fetchBillingSummary() {
-  return apiRequest<BillingSummary>('/api/billing/summary');
-}
-
 export default function DashboardPage() {
   return (
     <ProtectedRoute>
@@ -54,17 +49,13 @@ export default function DashboardPage() {
 
 function DashboardOverview() {
   const [videos, setVideos] = useState<Video[]>([]);
-  const [billing, setBilling] = useState<BillingSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
 
-      const [libraryRes, billingRes] = await Promise.all([
-        fetchLibrary({ page: 1, limit: 6 }),
-        fetchBillingSummary(),
-      ]);
+      const libraryRes = await fetchLibrary({ page: 1, limit: 6 });
 
       if (libraryRes.success) {
         setVideos(libraryRes.data ?? []);
@@ -112,10 +103,6 @@ function DashboardOverview() {
         ]);
       }
 
-      if (billingRes.success && billingRes.data) {
-        setBilling(billingRes.data);
-      }
-
       setLoading(false);
     };
 
@@ -132,6 +119,9 @@ function DashboardOverview() {
       .map((video) => video.duration)
       .filter((value): value is number => value !== null && Number.isFinite(value));
 
+    const totalStorageBytes = videos.reduce((sum, video) => sum + Number(video.fileSize || 0), 0);
+    const totalProcessedMinutes = Math.round(durations.reduce((sum, value) => sum + value, 0) / 60);
+
     const averageDurationSeconds =
       durations.length > 0
         ? Math.round(durations.reduce((sum, value) => sum + value, 0) / durations.length)
@@ -144,30 +134,12 @@ function DashboardOverview() {
       completedVideos,
       processingVideos,
       failedVideos,
+      totalStorageBytes,
+      totalProcessedMinutes,
       averageDurationSeconds,
       completionRate,
     };
   }, [videos]);
-
-  const quota = useMemo(() => {
-    if (!billing) {
-      return null;
-    }
-
-    const maxVideos = Math.max(billing.plan.maxVideos, 1);
-    const maxStorage = Math.max(Number(billing.plan.maxStorageBytes), 1);
-    const maxMinutes = Math.max(billing.plan.maxMinutes, 1);
-
-    const videoPercent = clampPercent((billing.usage.videosUploaded / maxVideos) * 100);
-    const storagePercent = clampPercent((Number(billing.usage.storageUsedBytes) / maxStorage) * 100);
-    const minutesPercent = clampPercent((billing.usage.minutesProcessed / maxMinutes) * 100);
-
-    return {
-      videoPercent,
-      storagePercent,
-      minutesPercent,
-    };
-  }, [billing]);
 
   const statusBreakdown = useMemo(
     () => [
@@ -335,39 +307,15 @@ function DashboardOverview() {
 
         <Card className="space-y-5 p-5 md:p-6">
           <div>
-            <p className="ns-label">Plan and storage</p>
-            <h3 className="mt-1 text-base font-medium text-white md:text-lg">Utilization</h3>
-            <p className="mt-1 text-sm text-textMuted">
-              {billing
-                ? `Current plan: ${billing.plan.name}`
-                : 'Billing endpoint unavailable. Displaying live library metrics only.'}
-            </p>
+            <p className="ns-label">Library utilization</p>
+            <h3 className="mt-1 text-base font-medium text-white md:text-lg">Current usage snapshot</h3>
+            <p className="mt-1 text-sm text-textMuted">Live usage metrics derived from your video library.</p>
           </div>
 
           <div className="space-y-4">
-            <QuotaRow
-              label="Videos"
-              value={billing ? `${billing.usage.videosUploaded}/${billing.plan.maxVideos}` : `${metrics.totalVideos}/-`}
-              percent={quota?.videoPercent ?? 0}
-            />
-            <QuotaRow
-              label="Storage"
-              value={
-                billing
-                  ? `${bytesToSize(billing.usage.storageUsedBytes)} / ${bytesToSize(billing.plan.maxStorageBytes)}`
-                  : 'N/A'
-              }
-              percent={quota?.storagePercent ?? 0}
-            />
-            <QuotaRow
-              label="Minutes processed"
-              value={
-                billing
-                  ? `${billing.usage.minutesProcessed}/${billing.plan.maxMinutes}`
-                  : `${Math.round(metrics.averageDurationSeconds / 60)}/-`
-              }
-              percent={quota?.minutesPercent ?? 0}
-            />
+            <UsageRow label="Videos" value={`${metrics.totalVideos}`} />
+            <UsageRow label="Storage used" value={bytesToSize(metrics.totalStorageBytes)} />
+            <UsageRow label="Processed minutes (est.)" value={`${metrics.totalProcessedMinutes} min`} />
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2">
@@ -484,16 +432,11 @@ function MetricCard({
   );
 }
 
-function QuotaRow({ label, value, percent }: { label: string; value: string; percent: number }) {
+function UsageRow({ label, value }: { label: string; value: string }) {
   return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between text-sm text-[#E2E2E6]">
-        <span>{label}</span>
-        <span className="text-xs text-textMuted">{value}</span>
-      </div>
-      <div className="ns-progress-track h-2.5 bg-[#FFFFFF]/5">
-        <div className="ns-progress-fill h-full bg-brand" style={{ width: `${percent}%` }} />
-      </div>
+    <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.02] px-3 py-2.5 text-sm">
+      <span className="text-[#E2E2E6]">{label}</span>
+      <span className="text-xs text-textMuted">{value}</span>
     </div>
   );
 }

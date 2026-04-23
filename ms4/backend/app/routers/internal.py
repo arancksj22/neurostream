@@ -12,7 +12,6 @@ from ..models import CallbackEvent, Video, WorkflowStatusLog
 from ..responses import success_response
 from ..schemas import StatusCallbackRequest
 from ..utils import utc_now
-from .helpers import add_processed_minutes
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 
@@ -50,9 +49,6 @@ def update_status(
             message=payload.message,
         )
     )
-
-    if payload.processedMinutes:
-        add_processed_minutes(db, video.user_id, payload.processedMinutes)
 
     db.commit()
 

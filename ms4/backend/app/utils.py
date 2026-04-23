@@ -8,11 +8,6 @@ def utc_now() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def get_current_month() -> str:
-    now = utc_now()
-    return f"{now.year}-{now.month:02d}"
-
-
 def generate_object_key(user_id: str, filename: str) -> str:
     unique_id = str(uuid.uuid4())
     ext = Path(filename).suffix

@@ -13,7 +13,6 @@ NeuroStream is a full-stack user workflow service for AI video processing.
 - Verifies upload completion and queues processing jobs
 - Tracks workflow status updates and callback events
 - Supports library listing, video details, rename, and soft delete
-- Computes billing/usage summary against subscription limits
 
 ## Repository Layout
 
@@ -122,7 +121,6 @@ Base URL: `http://localhost:4000`
 - `GET /api/videos/{video_id}`
 - `PATCH /api/videos/{video_id}/rename`
 - `DELETE /api/videos/{video_id}`
-- `GET /api/billing/summary`
 - `PATCH /internal/job-status` (requires `x-api-key`)
 
 ## Useful Commands
