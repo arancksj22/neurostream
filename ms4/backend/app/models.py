@@ -70,18 +70,7 @@ class Subscription(Base):
     updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
-class BillingUsage(Base):
-    __tablename__ = "billing_usage"
-    __table_args__ = (UniqueConstraint("user_id", "month", name="billing_usage_user_id_month_key"),)
 
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid_str)
-    user_id: Mapped[str] = mapped_column("user_id", String(36), ForeignKey("users.id", ondelete="CASCADE"), index=True)
-    month: Mapped[str] = mapped_column(String(7), nullable=False)
-    videos_uploaded: Mapped[int] = mapped_column("videos_uploaded", Integer, default=0, nullable=False)
-    storage_used_bytes: Mapped[int] = mapped_column("storage_used_bytes", BigInteger, default=0, nullable=False)
-    minutes_processed: Mapped[float] = mapped_column("minutes_processed", Float, default=0, nullable=False)
-    created_at: Mapped[datetime] = mapped_column("created_at", DateTime(timezone=True), default=utc_now)
-    updated_at: Mapped[datetime] = mapped_column("updated_at", DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
 
 class CallbackEvent(Base):
